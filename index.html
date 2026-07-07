@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CurseRace — how fast can you swear?</title>
+<meta name="description" content="Type as many curse words as you can in 60 seconds. A profane typing race." />
+<meta property="og:title" content="CurseRace — how fast can you swear?" />
+<meta property="og:description" content="Type as many curse words as you can in 60 seconds. Beat the global leaderboard." />
+<meta property="og:type" content="website" />
+<style>
+  :root {
+    --bg: #111217;
+    --sub: #4b4f5a;
+    --text: #d1d0c5;
+    --main: #f5851f;
+    --correct: #d1d0c5;
+    --error: #ca4754;
+    --error-extra: #7e2a33;
+    --caret: #f5851f;
+    --panel: #1a1c22;
+    --panel2: #22242c;
+    --mono: "SF Mono", "JetBrains Mono", "Fira Code", Consolas, "Courier New", monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body.playing { overflow: hidden; }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 22px 30px;
+  }
+  .logo {
+    font-weight: 700;
+    font-size: 22px;
+    letter-spacing: -0.5px;
+    color: var(--text);
+    user-select: none;
+    cursor: pointer;
+  }
+  .logo span { color: var(--main); }
+  .stats { display: flex; gap: 34px; font-size: 15px; color: var(--sub); }
+  .stats .val { color: var(--main); font-size: 26px; line-height: 1; }
+  .stats .lbl { font-size: 12px; letter-spacing: 1px; text-transform: uppercase; }
+  .stats .cell { display: flex; flex-direction: column; gap: 5px; align-items: center; min-width: 54px; }
+
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    text-align: center;
+    width: 100%;
+  }
+
+  /* ---- Game ---- */
+  #game { display: flex; flex-direction: column; align-items: center; gap: 40px; }
+  #game.hide { display: none; }
+  .word {
+    font-size: clamp(48px, 10vw, 104px);
+    font-weight: 500;
+    letter-spacing: 2px;
+    user-select: none;
+    display: inline-flex;
+    align-items: center;
+  }
+  .word .ch { color: var(--sub); position: relative; transition: color 0.05s; }
+  .word .ch.correct { color: var(--correct); }
+  .word .ch.error   { color: var(--error); }
+  .word .ch.extra   { color: var(--error-extra); text-decoration: underline; }
+  .word .caret {
+    display: inline-block;
+    width: 3px;
+    align-self: stretch;
+    background: var(--caret);
+    border-radius: 2px;
+    margin: 0 -1px;
+    animation: blink 1s steps(1) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+  .hint { color: var(--sub); font-size: 16px; letter-spacing: 1px; height: 20px; }
+
+  /* ---- Results ---- */
+  #results { display: none; flex-direction: column; align-items: center; gap: 22px; width: 100%; max-width: 520px; }
+  #results.show { display: flex; }
+  .res-title { font-size: 20px; color: var(--sub); letter-spacing: 1px; }
+  .res-grid { display: flex; gap: 60px; }
+  .res-cell { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+  .res-cell .num { font-size: 72px; line-height: 1; color: var(--main); font-weight: 600; }
+  .res-cell .cap { font-size: 13px; text-transform: uppercase; letter-spacing: 2px; color: var(--sub); }
+  .best { font-size: 15px; color: var(--sub); }
+  .best b { color: var(--text); }
+  .best .new { color: var(--main); }
+
+  /* ---- Submit row ---- */
+  .submit-row { display: flex; gap: 10px; width: 100%; }
+  .submit-row.hide { display: none; }
+  input.name {
+    flex: 1;
+    font-family: var(--mono);
+    font-size: 15px;
+    background: var(--panel);
+    border: 1px solid #2a2d36;
+    color: var(--text);
+    border-radius: 8px;
+    padding: 12px 14px;
+    outline: none;
+  }
+  input.name:focus { border-color: var(--main); }
+
+  /* ---- Leaderboard ---- */
+  .board { width: 100%; display: none; flex-direction: column; gap: 4px; }
+  .board.show { display: flex; }
+  .board-title { font-size: 13px; text-transform: uppercase; letter-spacing: 2px; color: var(--sub); margin-bottom: 6px; }
+  .row {
+    display: grid;
+    grid-template-columns: 34px 1fr auto auto;
+    gap: 12px;
+    align-items: center;
+    padding: 9px 14px;
+    background: var(--panel);
+    border-radius: 7px;
+    font-size: 15px;
+  }
+  .row .rank { color: var(--sub); text-align: right; }
+  .row .nm { text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .w { color: var(--main); font-weight: 600; }
+  .row .wp { color: var(--sub); font-size: 13px; min-width: 66px; text-align: right; }
+  .row.me { background: var(--panel2); outline: 1px solid var(--main); }
+  .row.top1 .rank { color: #f5851f; }
+  .board-note { font-size: 13px; color: var(--sub); }
+
+  .btns { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-top: 4px; }
+  button {
+    font-family: var(--mono);
+    font-size: 15px;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 22px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, transform 0.05s;
+  }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  .btn-primary { background: var(--main); color: #111; font-weight: 600; }
+  .btn-primary:hover { background: #f79a45; }
+  .btn-ghost { background: var(--panel); color: var(--text); }
+  .btn-ghost:hover { color: var(--main); }
+  .btn-sm { padding: 9px 14px; font-size: 13px; }
+
+  .share-icons { display: flex; gap: 10px; align-items: center; }
+  .share-icons a, .share-icons button {
+    background: var(--panel);
+    color: var(--text);
+    width: 40px; height: 40px;
+    border-radius: 8px;
+    display: inline-flex; align-items: center; justify-content: center;
+    text-decoration: none; font-size: 15px; font-weight: 600;
+    border: none; cursor: pointer;
+  }
+  .share-icons a:hover, .share-icons button:hover { color: var(--main); }
+
+  .toast {
+    position: fixed;
+    bottom: 90px; left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--panel); color: var(--text);
+    padding: 10px 18px; border-radius: 8px; font-size: 14px;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.25s, transform 0.25s;
+    border: 1px solid #2a2d36;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  footer {
+    display: flex; align-items: center; justify-content: center;
+    gap: 8px; padding: 18px; font-size: 13px; color: var(--sub);
+  }
+  footer a { color: var(--sub); text-decoration: none; border-bottom: 1px dotted var(--sub); }
+  footer a:hover { color: var(--main); border-color: var(--main); }
+  .kofi { color: var(--main) !important; border-color: var(--main) !important; }
+
+  @media (max-width: 600px) {
+    header { padding: 16px; }
+    .stats { gap: 18px; }
+    .res-grid { gap: 34px; }
+    .res-cell .num { font-size: 54px; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <div class="logo" id="logo">Curse<span>Race</span></div>
+    <div class="stats">
+      <div class="cell"><div class="val" id="timeStat">60</div><div class="lbl">time</div></div>
+      <div class="cell"><div class="val" id="wordStat">0</div><div class="lbl">words</div></div>
+      <div class="cell"><div class="val" id="wpmStat">0</div><div class="lbl">wpm</div></div>
+    </div>
+  </header>
+
+  <main>
+    <div id="game">
+      <div class="word" id="word"></div>
+      <div class="hint" id="hint">start typing to begin — you have 60 seconds</div>
+    </div>
+
+    <div id="results">
+      <div class="res-title">time's up 🤬</div>
+      <div class="res-grid">
+        <div class="res-cell"><div class="num" id="finalWords">0</div><div class="cap">words</div></div>
+        <div class="res-cell"><div class="num" id="finalWpm">0</div><div class="cap">wpm</div></div>
+      </div>
+      <div class="best" id="bestLine"></div>
+
+      <div class="submit-row" id="submitRow">
+        <input class="name" id="nameInput" maxlength="16" placeholder="your name (for the leaderboard)" autocomplete="off" />
+        <button class="btn-primary" id="submitBtn">Submit</button>
+      </div>
+
+      <div class="board" id="board">
+        <div class="board-title">🌍 global top 10</div>
+        <div id="boardRows"></div>
+        <div class="board-note" id="boardNote"></div>
+      </div>
+
+      <div class="btns">
+        <button class="btn-primary" id="againBtn">Run again</button>
+        <div class="share-icons">
+          <button class="btn-ghost btn-sm" id="shareBtn">Share ↗</button>
+          <a id="shareX" target="_blank" rel="noopener" title="Share on X">𝕏</a>
+          <a id="shareFb" target="_blank" rel="noopener" title="Share on Facebook">f</a>
+          <button id="shareImg" title="Download image">⬇</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <span>type fast, curse hard.</span>
+    <a class="kofi" href="#" id="donate" target="_blank" rel="noopener">☕ support</a>
+  </footer>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ============================================================
+     CONFIG — paste your Supabase project URL + anon key here.
+     Leave blank to run without the global leaderboard.
+     ============================================================ */
+  const SUPABASE_URL = "https://pockxfhenfnfdrkaoiqz.supabase.co";
+  const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvY2t4ZmhlbmZuZmRya2FvaXF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0MzYwNDgsImV4cCI6MjA5ODAxMjA0OH0.pKnoi4vVAxYI6ue5XPVUm0iE9TCt7UF1iE_ojbo0C08";
+  /* ============================================================ */
+
+  const LB_ENABLED = !!(SUPABASE_URL && SUPABASE_KEY);
+
+  // English curse words — mixed lengths for skill range.
+  const WORDS = [
+    "damn","hell","crap","piss","arse","dick","twat","git","prat","sod",
+    "shit","bitch","bugger","bollocks","wanker","tosser","bastard","arsehole",
+    "asshole","dumbass","jackass","dipshit","shithead","numbnuts","knobhead",
+    "fuck","fucker","fucking","clusterfuck","motherfucker","fuckwit","fucknut",
+    "prick","cockup","scumbag","douchebag","douche","sleazebag","skidmark",
+    "moron","idiot","imbecile","buffoon","nincompoop","halfwit","dimwit",
+    "sonofabitch","goddamn","hellfire","piss-off","numpty","muppet","plonker",
+    "shitshow","dumpsterfire","garbagefire","hogwash","balderdash","codswallop",
+    "arsewipe","cockwomble","fannybaws","bawbag","choadface","turdburglar",
+    "dickhead","bellend","knobend","gobshite","wazzock","pillock",
+    "spanner","gimp","minger","slapper","tosspot","shitbag",
+    "fuckface","cockface","twatwaffle","shitgibbon","fucknugget","wankstain",
+    "assclown","buttmunch","jackwagon","numbskull","blockhead","knucklehead",
+    "meathead","lardass","nitwit","bonehead","dunderhead","fartknocker"
+  ];
+
+  const el = {
+    word: document.getElementById("word"),
+    hint: document.getElementById("hint"),
+    time: document.getElementById("timeStat"),
+    words: document.getElementById("wordStat"),
+    wpm: document.getElementById("wpmStat"),
+    game: document.getElementById("game"),
+    results: document.getElementById("results"),
+    finalWords: document.getElementById("finalWords"),
+    finalWpm: document.getElementById("finalWpm"),
+    bestLine: document.getElementById("bestLine"),
+    submitRow: document.getElementById("submitRow"),
+    nameInput: document.getElementById("nameInput"),
+    submitBtn: document.getElementById("submitBtn"),
+    board: document.getElementById("board"),
+    boardRows: document.getElementById("boardRows"),
+    boardNote: document.getElementById("boardNote"),
+    again: document.getElementById("againBtn"),
+    share: document.getElementById("shareBtn"),
+    shareX: document.getElementById("shareX"),
+    shareFb: document.getElementById("shareFb"),
+    shareImg: document.getElementById("shareImg"),
+    toast: document.getElementById("toast"),
+    logo: document.getElementById("logo"),
+  };
+
+  const DURATION = 60;
+  const MAX_PLAUSIBLE = 250; // sanity cap for submissions
+  let queue = [];
+  let current = "";
+  let typed = "";
+  let wordCount = 0;
+  let correctChars = 0;
+  let started = false;
+  let finished = false;
+  let submitted = false;
+  let endTime = 0;
+  let tick = null;
+  let lastWpm = 0;
+
+  function shuffle(a) {
+    const arr = a.slice();
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function nextWord() {
+    if (queue.length === 0) queue = shuffle(WORDS);
+    current = queue.pop();
+    typed = "";
+    render();
+  }
+
+  function render() {
+    const frag = document.createDocumentFragment();
+    const max = Math.max(current.length, typed.length);
+    for (let i = 0; i < max; i++) {
+      if (i === typed.length) {
+        const caret = document.createElement("span");
+        caret.className = "caret";
+        frag.appendChild(caret);
+      }
+      const span = document.createElement("span");
+      span.className = "ch";
+      if (i < current.length) {
+        span.textContent = current[i];
+        if (i < typed.length) span.classList.add(typed[i] === current[i] ? "correct" : "error");
+      } else {
+        span.textContent = typed[i];
+        span.classList.add("extra");
+      }
+      frag.appendChild(span);
+    }
+    el.word.innerHTML = "";
+    el.word.appendChild(frag);
+  }
+
+  function start() {
+    started = true;
+    endTime = Date.now() + DURATION * 1000;
+    el.hint.textContent = "";
+    document.body.classList.add("playing");
+    tick = setInterval(update, 100);
+  }
+
+  function update() {
+    const left = Math.max(0, (endTime - Date.now()) / 1000);
+    el.time.textContent = Math.ceil(left);
+    el.wpm.textContent = liveWpm();
+    if (left <= 0) finish();
+  }
+
+  function elapsedMin() {
+    const used = DURATION - Math.max(0, (endTime - Date.now()) / 1000);
+    return Math.max(used, 0.001) / 60;
+  }
+  function liveWpm() { return Math.round((correctChars / 5) / elapsedMin()); }
+
+  function finish() {
+    if (finished) return;
+    finished = true;
+    clearInterval(tick);
+    document.body.classList.remove("playing");
+    el.time.textContent = "0";
+
+    lastWpm = Math.round((correctChars / 5) / (DURATION / 60));
+    el.finalWords.textContent = wordCount;
+    el.finalWpm.textContent = lastWpm;
+
+    const best = Number(localStorage.getItem("curserace_best") || 0);
+    if (wordCount > best) {
+      localStorage.setItem("curserace_best", String(wordCount));
+      el.bestLine.innerHTML = '<span class="new">🏆 new personal best!</span>';
+    } else {
+      el.bestLine.innerHTML = 'your best: <b>' + best + '</b> words';
+    }
+
+    // prefill last-used name
+    el.nameInput.value = localStorage.getItem("curserace_name") || "";
+    updateShareLinks();
+
+    el.game.classList.add("hide");
+    el.results.classList.add("show");
+
+    submitted = false;
+    if (LB_ENABLED && wordCount > 0) {
+      el.submitRow.classList.remove("hide");
+      el.submitBtn.disabled = false;
+      loadBoard(null);          // show current global top 10 right away
+    } else {
+      el.submitRow.classList.add("hide");
+      if (LB_ENABLED) loadBoard(null);
+    }
+  }
+
+  /* ---------- Supabase leaderboard (plain REST, no SDK) ---------- */
+  function sbHeaders(extra) {
+    return Object.assign({
+      "apikey": SUPABASE_KEY,
+      "Authorization": "Bearer " + SUPABASE_KEY,
+      "Content-Type": "application/json",
+    }, extra || {});
+  }
+
+  async function fetchScores(limit) {
+    const url = SUPABASE_URL + "/rest/v1/scores?select=id,name,words,wpm" +
+      "&order=words.desc,wpm.desc,created_at.asc&limit=" + limit;
+    const r = await fetch(url, { headers: sbHeaders() });
+    if (!r.ok) throw new Error("fetch " + r.status);
+    return r.json();
+  }
+
+  async function submitScore(name) {
+    const body = JSON.stringify({ name: name, words: wordCount, wpm: lastWpm });
+    const r = await fetch(SUPABASE_URL + "/rest/v1/scores", {
+      method: "POST",
+      headers: sbHeaders({ "Prefer": "return=representation" }),
+      body: body,
+    });
+    if (!r.ok) throw new Error("insert " + r.status);
+    const rows = await r.json();
+    return rows && rows[0] ? rows[0].id : null;
+  }
+
+  async function loadBoard(myId) {
+    if (!LB_ENABLED) return;
+    el.board.classList.add("show");
+    el.boardRows.innerHTML = '<div class="board-note">loading…</div>';
+    el.boardNote.textContent = "";
+    try {
+      const rows = await fetchScores(100);
+      renderBoard(rows.slice(0, 10), myId);
+      if (myId) {
+        const idx = rows.findIndex(function (x) { return x.id === myId; });
+        if (idx >= 0) {
+          el.boardNote.textContent = idx < 10
+            ? "you're ranked #" + (idx + 1) + " in the world 🌍"
+            : "you're ranked #" + (idx + 1) + " — climb into the top 10!";
+        } else {
+          el.boardNote.textContent = "you're outside the top 100 — keep grinding!";
+        }
+      }
+    } catch (e) {
+      el.boardRows.innerHTML = "";
+      el.boardNote.textContent = "couldn't load the leaderboard right now.";
+    }
+  }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  function renderBoard(rows, myId) {
+    if (!rows.length) { el.boardRows.innerHTML = '<div class="board-note">be the first to make the board!</div>'; return; }
+    el.boardRows.innerHTML = rows.map(function (r, i) {
+      const cls = "row" + (i === 0 ? " top1" : "") + (myId && r.id === myId ? " me" : "");
+      const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : (i + 1);
+      return '<div class="' + cls + '">' +
+        '<div class="rank">' + medal + '</div>' +
+        '<div class="nm">' + esc(r.name || "anon") + '</div>' +
+        '<div class="w">' + r.words + '</div>' +
+        '<div class="wp">' + r.wpm + ' wpm</div>' +
+      '</div>';
+    }).join("");
+  }
+
+  async function onSubmit() {
+    if (submitted || !LB_ENABLED) return;
+    if (wordCount <= 0 || wordCount > MAX_PLAUSIBLE) return;
+    let name = (el.nameInput.value || "anon").trim().slice(0, 16) || "anon";
+    localStorage.setItem("curserace_name", name);
+    el.submitBtn.disabled = true;
+    el.submitBtn.textContent = "…";
+    try {
+      const id = await submitScore(name);
+      submitted = true;
+      el.submitRow.classList.add("hide");
+      await loadBoard(id);
+    } catch (e) {
+      el.submitBtn.disabled = false;
+      el.submitBtn.textContent = "Submit";
+      showToast("submit failed — try again");
+    }
+  }
+
+  /* ---------- input ---------- */
+  function onKey(e) {
+    if (finished) return;
+    if (e.key === "Tab") return;
+
+    if (e.key === "Backspace") {
+      e.preventDefault();
+      if (typed.length > 0) typed = typed.slice(0, -1);
+      render();
+      return;
+    }
+    if (e.key === " " || e.key === "Spacebar") {
+      e.preventDefault();
+      if (typed === current) {
+        wordCount++;
+        correctChars += current.length + 1;
+        el.words.textContent = wordCount;
+        nextWord();
+      }
+      return;
+    }
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      if (!started) start();
+      typed += e.key;
+      render();
+    }
+  }
+
+  function reset() {
+    clearInterval(tick);
+    queue = shuffle(WORDS);
+    typed = ""; wordCount = 0; correctChars = 0;
+    started = false; finished = false; submitted = false;
+    el.time.textContent = DURATION;
+    el.words.textContent = "0";
+    el.wpm.textContent = "0";
+    el.hint.textContent = "start typing to begin — you have 60 seconds";
+    el.results.classList.remove("show");
+    el.board.classList.remove("show");
+    el.game.classList.remove("hide");
+    document.body.classList.remove("playing");
+    nextWord();
+  }
+
+  function showToast(msg) {
+    el.toast.textContent = msg;
+    el.toast.classList.add("show");
+    setTimeout(function () { el.toast.classList.remove("show"); }, 1800);
+  }
+
+  /* ---------- sharing ---------- */
+  function shareText() {
+    return "I typed " + wordCount + " curse words (" + lastWpm +
+      " WPM) in 60s on CurseRace 🤬 Can you beat me?";
+  }
+  function updateShareLinks() {
+    const url = location.href;
+    const t = encodeURIComponent(shareText());
+    const u = encodeURIComponent(url);
+    el.shareX.href = "https://twitter.com/intent/tweet?text=" + t + "&url=" + u;
+    el.shareFb.href = "https://www.facebook.com/sharer/sharer.php?u=" + u;
+  }
+  async function nativeShare() {
+    const url = location.href;
+    if (navigator.share) {
+      try { await navigator.share({ title: "CurseRace", text: shareText(), url: url }); return; } catch (_) {}
+    }
+    try { await navigator.clipboard.writeText(shareText() + " " + url); showToast("copied to clipboard!"); }
+    catch (_) { showToast("couldn't copy"); }
+  }
+
+  function downloadCard() {
+    const W = 1200, H = 630;
+    const c = document.createElement("canvas");
+    c.width = W; c.height = H;
+    const x = c.getContext("2d");
+    x.fillStyle = "#111217"; x.fillRect(0, 0, W, H);
+    x.textAlign = "center";
+    x.fillStyle = "#f5851f"; x.font = "bold 64px monospace";
+    x.fillText("CurseRace", W / 2, 130);
+    x.fillStyle = "#4b4f5a"; x.font = "28px monospace";
+    x.fillText("how fast can you swear?", W / 2, 178);
+    x.fillStyle = "#f5851f"; x.font = "bold 200px monospace";
+    x.fillText(String(wordCount), W / 2 - 200, 420);
+    x.fillText(String(lastWpm), W / 2 + 200, 420);
+    x.fillStyle = "#4b4f5a"; x.font = "28px monospace";
+    x.fillText("WORDS", W / 2 - 200, 470);
+    x.fillText("WPM", W / 2 + 200, 470);
+    x.fillStyle = "#d1d0c5"; x.font = "26px monospace";
+    x.fillText("🤬 in 60 seconds — can you beat it?", W / 2, 560);
+    const a = document.createElement("a");
+    a.download = "curserace-" + wordCount + "words.png";
+    a.href = c.toDataURL("image/png");
+    a.click();
+  }
+
+  /* ---------- wire up ---------- */
+  el.again.addEventListener("click", reset);
+  el.logo.addEventListener("click", reset);
+  el.share.addEventListener("click", nativeShare);
+  el.shareImg.addEventListener("click", downloadCard);
+  el.submitBtn.addEventListener("click", onSubmit);
+  el.nameInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") onSubmit();
+    e.stopPropagation();
+  });
+  document.addEventListener("keydown", onKey);
+
+  reset();
+})();
+</script>
+</body>
+</html>
