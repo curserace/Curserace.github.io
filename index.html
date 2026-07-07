@@ -528,20 +528,23 @@
       return;
     }
     if (e.key === " " || e.key === "Spacebar") {
+      // words never contain spaces — swallow them so the space habit never injects an error
       e.preventDefault();
-      if (typed === current) {
-        wordCount++;
-        correctChars += current.length + 1;
-        el.words.textContent = wordCount;
-        nextWord();
-      }
       return;
     }
     if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
       e.preventDefault();
       if (!started) start();
       typed += e.key;
-      render();
+      if (typed === current) {
+        // whole word is correct → auto-advance to the next one
+        wordCount++;
+        correctChars += current.length + 1; // +1 keeps WPM in line with space-separated typing
+        el.words.textContent = wordCount;
+        nextWord();
+      } else {
+        render();
+      }
     }
   }
 
