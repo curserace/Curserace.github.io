@@ -92,6 +92,13 @@
   @keyframes blink { 50% { opacity: 0; } }
   .hint { color: var(--sub); font-size: 16px; letter-spacing: 1px; height: 20px; }
 
+  /* ---- Start-screen mini leaderboard ---- */
+  .mini-board { display: flex; flex-direction: column; gap: 4px; width: 100%; max-width: 340px; transition: opacity 0.3s; }
+  .mini-board.hide { opacity: 0; pointer-events: none; }
+  .mini-board .board-title { font-size: 12px; text-transform: uppercase; letter-spacing: 2px; color: var(--sub); margin-bottom: 2px; }
+  .mini-board .row { font-size: 14px; padding: 7px 12px; }
+  .mini-board .mini-empty { font-size: 13px; color: var(--sub); }
+
   /* ---- Results ---- */
   #results { display: none; flex-direction: column; align-items: center; gap: 22px; width: 100%; max-width: 520px; }
   #results.show { display: flex; }
@@ -214,6 +221,10 @@
     <div id="game">
       <div class="word" id="word"></div>
       <div class="hint" id="hint">start typing to begin — you have 60 seconds</div>
+      <div class="mini-board" id="miniBoard">
+        <div class="board-title">🏆 top 3 to beat</div>
+        <div id="miniBoardRows"></div>
+      </div>
     </div>
 
     <div id="results">
@@ -310,6 +321,8 @@
     shareImg: document.getElementById("shareImg"),
     toast: document.getElementById("toast"),
     logo: document.getElementById("logo"),
+    miniBoard: document.getElementById("miniBoard"),
+    miniBoardRows: document.getElementById("miniBoardRows"),
   };
 
   const DURATION = 60;
@@ -370,6 +383,7 @@
     started = true;
     endTime = Date.now() + DURATION * 1000;
     el.hint.textContent = "";
+    el.miniBoard.classList.add("hide");
     document.body.classList.add("playing");
     tick = setInterval(update, 100);
   }
@@ -516,6 +530,29 @@
     }
   }
 
+  async function loadMiniBoard() {
+    if (!LB_ENABLED) { el.miniBoard.style.display = "none"; return; }
+    el.miniBoardRows.innerHTML = '<div class="mini-empty">loading…</div>';
+    try {
+      const rows = await fetchScores(3);
+      if (!rows.length) {
+        el.miniBoardRows.innerHTML = '<div class="mini-empty">be the first on the board!</div>';
+        return;
+      }
+      el.miniBoardRows.innerHTML = rows.map(function (r, i) {
+        const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉";
+        return '<div class="row' + (i === 0 ? ' top1' : '') + '">' +
+          '<div class="rank">' + medal + '</div>' +
+          '<div class="nm">' + esc(r.name || "anon") + '</div>' +
+          '<div class="w">' + r.words + '</div>' +
+          '<div class="wp">' + r.wpm + ' wpm</div>' +
+        '</div>';
+      }).join("");
+    } catch (e) {
+      el.miniBoardRows.innerHTML = '<div class="mini-empty">couldn\'t load leaderboard</div>';
+    }
+  }
+
   /* ---------- input ---------- */
   function onKey(e) {
     if (finished) return;
@@ -561,6 +598,8 @@
     el.board.classList.remove("show");
     el.game.classList.remove("hide");
     document.body.classList.remove("playing");
+    el.miniBoard.classList.remove("hide");
+    loadMiniBoard();
     nextWord();
   }
 
