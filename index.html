@@ -8,6 +8,11 @@
 <meta property="og:title" content="CurseRace — how fast can you swear?" />
 <meta property="og:description" content="Type as many curse words as you can in 60 seconds. Beat the global leaderboard." />
 <meta property="og:type" content="website" />
+<meta property="og:image" content="https://curserace.github.io/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://curserace.github.io/og.png" />
 <style>
   :root {
     --bg: #111217;
@@ -90,7 +95,21 @@
     animation: blink 1s steps(1) infinite;
   }
   @keyframes blink { 50% { opacity: 0; } }
-  .hint { color: var(--sub); font-size: 16px; letter-spacing: 1px; height: 20px; }
+  .hint { color: var(--sub); font-size: 16px; letter-spacing: 1px; min-height: 20px; }
+  .challenge-banner {
+    background: var(--panel);
+    border: 1px solid var(--main);
+    border-radius: 10px;
+    padding: 14px 22px;
+    margin-bottom: 8px;
+    text-align: center;
+    max-width: 440px;
+    transition: opacity 0.3s;
+  }
+  .challenge-banner.hide { opacity: 0; pointer-events: none; }
+  .challenge-banner .ch-name { color: var(--main); font-weight: 600; }
+  .challenge-banner .ch-score { color: var(--text); font-size: 28px; font-weight: 600; display: block; margin: 6px 0 2px; }
+  .challenge-banner .ch-sub { color: var(--sub); font-size: 13px; }
 
   /* ---- Start-screen mini leaderboard ---- */
   .mini-board { display: flex; flex-direction: column; gap: 4px; width: 100%; max-width: 340px; transition: opacity 0.3s; }
@@ -219,6 +238,11 @@
 
   <main>
     <div id="game">
+      <div class="challenge-banner hide" id="challengeBanner">
+        <span class="ch-name" id="chName"></span> scored
+        <span class="ch-score" id="chScore"></span>
+        <span class="ch-sub">can you beat it? start typing!</span>
+      </div>
       <div class="word" id="word"></div>
       <div class="hint" id="hint">start typing to begin — you have 60 seconds</div>
       <div class="mini-board" id="miniBoard">
@@ -249,6 +273,7 @@
       <div class="btns">
         <button class="btn-primary" id="againBtn">Run again</button>
         <div class="share-icons">
+          <button class="btn-ghost btn-sm" id="challengeBtn">⚔ Challenge</button>
           <button class="btn-ghost btn-sm" id="shareBtn">Share ↗</button>
           <a id="shareX" target="_blank" rel="noopener" title="Share on X">𝕏</a>
           <a id="shareFb" target="_blank" rel="noopener" title="Share on Facebook">f</a>
@@ -323,6 +348,10 @@
     logo: document.getElementById("logo"),
     miniBoard: document.getElementById("miniBoard"),
     miniBoardRows: document.getElementById("miniBoardRows"),
+    challengeBanner: document.getElementById("challengeBanner"),
+    chName: document.getElementById("chName"),
+    chScore: document.getElementById("chScore"),
+    challengeBtn: document.getElementById("challengeBtn"),
   };
 
   const DURATION = 60;
@@ -384,6 +413,7 @@
     endTime = Date.now() + DURATION * 1000;
     el.hint.textContent = "";
     el.miniBoard.classList.add("hide");
+    el.challengeBanner.classList.add("hide");
     document.body.classList.add("playing");
     tick = setInterval(update, 100);
   }
@@ -419,6 +449,9 @@
     } else {
       el.bestLine.innerHTML = 'your best: <b>' + best + '</b> words';
     }
+
+    const cr = challengeResult();
+    if (cr) el.bestLine.innerHTML += '<br>' + cr;
 
     // prefill last-used name
     el.nameInput.value = localStorage.getItem("curserace_name") || "";
@@ -530,6 +563,51 @@
     }
   }
 
+  /* ---------- challenge ---------- */
+  let challenge = null; // { name, words, wpm }
+
+  function parseChallenge() {
+    const p = new URLSearchParams(location.search);
+    const s = parseInt(p.get("s"), 10);
+    if (s > 0 && s <= MAX_PLAUSIBLE) {
+      challenge = {
+        name: (p.get("n") || "someone").slice(0, 16),
+        words: s,
+        wpm: parseInt(p.get("w"), 10) || 0,
+      };
+    }
+  }
+
+  function showChallengeBanner() {
+    if (!challenge) return;
+    el.chName.textContent = challenge.name;
+    el.chScore.textContent = challenge.words + " words (" + challenge.wpm + " WPM)";
+    el.challengeBanner.classList.remove("hide");
+  }
+
+  function challengeUrl() {
+    const name = localStorage.getItem("curserace_name") || "someone";
+    const base = location.origin + location.pathname;
+    return base + "?n=" + encodeURIComponent(name) + "&s=" + wordCount + "&w=" + lastWpm;
+  }
+
+  async function copyChallenge() {
+    const url = challengeUrl();
+    const text = "I scored " + wordCount + " words (" + lastWpm + " WPM) on CurseRace 🤬 Think you can beat me? " + url;
+    if (navigator.share) {
+      try { await navigator.share({ title: "CurseRace Challenge", text: text, url: url }); return; } catch (_) {}
+    }
+    try { await navigator.clipboard.writeText(text); showToast("challenge link copied!"); }
+    catch (_) { showToast("couldn't copy"); }
+  }
+
+  function challengeResult() {
+    if (!challenge) return "";
+    if (wordCount > challenge.words) return '<span class="new">🎉 you beat ' + esc(challenge.name) + '!</span>';
+    if (wordCount === challenge.words) return '😤 tied with ' + esc(challenge.name) + '!';
+    return '😈 ' + esc(challenge.name) + ' wins this round — try again!';
+  }
+
   async function loadMiniBoard() {
     if (!LB_ENABLED) { el.miniBoard.style.display = "none"; return; }
     el.miniBoardRows.innerHTML = '<div class="mini-empty">loading…</div>';
@@ -599,6 +677,7 @@
     el.game.classList.remove("hide");
     document.body.classList.remove("playing");
     el.miniBoard.classList.remove("hide");
+    showChallengeBanner();
     loadMiniBoard();
     nextWord();
   }
@@ -658,6 +737,7 @@
   /* ---------- wire up ---------- */
   el.again.addEventListener("click", reset);
   el.logo.addEventListener("click", reset);
+  el.challengeBtn.addEventListener("click", copyChallenge);
   el.share.addEventListener("click", nativeShare);
   el.shareImg.addEventListener("click", downloadCard);
   el.submitBtn.addEventListener("click", onSubmit);
@@ -667,6 +747,7 @@
   });
   document.addEventListener("keydown", onKey);
 
+  parseChallenge();
   reset();
 })();
 </script>
