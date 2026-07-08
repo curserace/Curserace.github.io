@@ -95,6 +95,20 @@
     animation: blink 1s steps(1) infinite;
   }
   @keyframes blink { 50% { opacity: 0; } }
+  .mobile-input {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    font-size: 16px;
+  }
+  .tap-hint { display: none; }
+  @media (pointer: coarse) {
+    .tap-hint { display: block; color: var(--sub); font-size: 14px; margin-top: 8px; animation: pulse 2s ease-in-out infinite; }
+    @keyframes pulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
+  }
   .hint { color: var(--sub); font-size: 16px; letter-spacing: 1px; min-height: 20px; }
   .challenge-banner {
     background: var(--panel);
@@ -244,7 +258,9 @@
         <span class="ch-sub">can you beat it? start typing!</span>
       </div>
       <div class="word" id="word"></div>
+      <input id="mobileInput" class="mobile-input" type="text" autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false" />
       <div class="hint" id="hint">start typing to begin — you have 60 seconds</div>
+      <div class="tap-hint" id="tapHint">tap here to start typing</div>
       <div class="mini-board" id="miniBoard">
         <div class="board-title">🏆 top 3 to beat</div>
         <div id="miniBoardRows"></div>
@@ -352,6 +368,8 @@
     chName: document.getElementById("chName"),
     chScore: document.getElementById("chScore"),
     challengeBtn: document.getElementById("challengeBtn"),
+    mobileInput: document.getElementById("mobileInput"),
+    tapHint: document.getElementById("tapHint"),
   };
 
   const DURATION = 60;
@@ -412,6 +430,7 @@
     started = true;
     endTime = Date.now() + DURATION * 1000;
     el.hint.textContent = "";
+    el.tapHint.style.display = "none";
     el.miniBoard.classList.add("hide");
     el.challengeBanner.classList.add("hide");
     document.body.classList.add("playing");
@@ -632,35 +651,54 @@
   }
 
   /* ---------- input ---------- */
+  var isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || matchMedia("(pointer: coarse)").matches;
+
+  function focusInput() {
+    if (!finished) el.mobileInput.focus({ preventScroll: true });
+  }
+
+  function handleChar(ch) {
+    if (finished) return;
+    if (ch === " ") return;
+    if (!started) start();
+    typed += ch.toLowerCase();
+    if (typed === current) {
+      wordCount++;
+      correctChars += current.length + 1;
+      el.words.textContent = wordCount;
+      el.mobileInput.value = "";
+      nextWord();
+    } else {
+      render();
+    }
+  }
+
+  function handleBackspace() {
+    if (finished) return;
+    if (typed.length > 0) typed = typed.slice(0, -1);
+    render();
+  }
+
   function onKey(e) {
     if (finished) return;
     if (e.key === "Tab") return;
-
-    if (e.key === "Backspace") {
-      e.preventDefault();
-      if (typed.length > 0) typed = typed.slice(0, -1);
-      render();
-      return;
-    }
-    if (e.key === " " || e.key === "Spacebar") {
-      // words never contain spaces — swallow them so the space habit never injects an error
-      e.preventDefault();
-      return;
-    }
+    if (e.key === "Backspace") { e.preventDefault(); handleBackspace(); return; }
+    if (e.key === " " || e.key === "Spacebar") { e.preventDefault(); return; }
     if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
       e.preventDefault();
-      if (!started) start();
-      typed += e.key;
-      if (typed === current) {
-        // whole word is correct → auto-advance to the next one
-        wordCount++;
-        correctChars += current.length + 1; // +1 keeps WPM in line with space-separated typing
-        el.words.textContent = wordCount;
-        nextWord();
-      } else {
-        render();
-      }
+      handleChar(e.key);
     }
+  }
+
+  function onMobileInput(e) {
+    var val = el.mobileInput.value;
+    if (val.length === 0) {
+      handleBackspace();
+      return;
+    }
+    var lastChar = val.slice(-1);
+    el.mobileInput.value = "";
+    handleChar(lastChar);
   }
 
   function reset() {
@@ -672,6 +710,8 @@
     el.words.textContent = "0";
     el.wpm.textContent = "0";
     el.hint.textContent = "start typing to begin — you have 60 seconds";
+    el.tapHint.style.display = "";
+    el.mobileInput.value = "";
     el.results.classList.remove("show");
     el.board.classList.remove("show");
     el.game.classList.remove("hide");
@@ -680,6 +720,7 @@
     showChallengeBanner();
     loadMiniBoard();
     nextWord();
+    if (isMobile) setTimeout(focusInput, 100);
   }
 
   function showToast(msg) {
@@ -735,8 +776,8 @@
   }
 
   /* ---------- wire up ---------- */
-  el.again.addEventListener("click", reset);
-  el.logo.addEventListener("click", reset);
+  el.again.addEventListener("click", function () { reset(); focusInput(); });
+  el.logo.addEventListener("click", function () { reset(); focusInput(); });
   el.challengeBtn.addEventListener("click", copyChallenge);
   el.share.addEventListener("click", nativeShare);
   el.shareImg.addEventListener("click", downloadCard);
@@ -746,6 +787,15 @@
     e.stopPropagation();
   });
   document.addEventListener("keydown", onKey);
+
+  el.mobileInput.addEventListener("input", onMobileInput);
+  el.mobileInput.addEventListener("keydown", function (e) {
+    if (e.key === "Backspace") { e.preventDefault(); handleBackspace(); }
+  });
+
+  el.game.addEventListener("click", function () {
+    if (!finished) focusInput();
+  });
 
   parseChallenge();
   reset();
