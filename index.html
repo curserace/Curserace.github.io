@@ -189,7 +189,8 @@
   .row.top1 .rank { color: #f5851f; }
   .board-note { font-size: 13px; color: var(--sub); }
 
-  .btns { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-top: 4px; }
+  .btns { display: flex; flex-direction: column; gap: 10px; align-items: center; margin-top: 4px; width: 100%; }
+  .btns-row { display: flex; gap: 10px; justify-content: center; width: 100%; }
   button {
     font-family: var(--mono);
     font-size: 15px;
@@ -207,15 +208,16 @@
   .btn-ghost:hover { color: var(--main); }
   .btn-sm { padding: 9px 14px; font-size: 13px; }
 
-  .share-icons { display: flex; gap: 10px; align-items: center; }
+  .share-icons { display: flex; gap: 8px; align-items: center; justify-content: center; }
   .share-icons a, .share-icons button {
     background: var(--panel);
     color: var(--text);
-    width: 40px; height: 40px;
+    width: 42px; height: 42px;
     border-radius: 8px;
     display: inline-flex; align-items: center; justify-content: center;
     text-decoration: none; font-size: 15px; font-weight: 600;
     border: none; cursor: pointer;
+    padding: 0;
   }
   .share-icons a:hover, .share-icons button:hover { color: var(--main); }
 
@@ -294,10 +296,12 @@
       </div>
 
       <div class="btns">
-        <button class="btn-primary" id="againBtn">Run again</button>
+        <div class="btns-row">
+          <button class="btn-primary" id="againBtn" style="flex:1;max-width:200px;">Run again</button>
+          <button class="btn-ghost" id="challengeBtn" style="flex:1;max-width:200px;">⚔ Challenge</button>
+        </div>
         <div class="share-icons">
-          <button class="btn-ghost btn-sm" id="challengeBtn">⚔ Challenge</button>
-          <button class="btn-ghost btn-sm" id="shareBtn">Share ↗</button>
+          <button id="shareBtn" title="Share">↗</button>
           <a id="shareX" target="_blank" rel="noopener" title="Share on X">𝕏</a>
           <a id="shareFb" target="_blank" rel="noopener" title="Share on Facebook">f</a>
           <button id="shareImg" title="Download image">⬇</button>
