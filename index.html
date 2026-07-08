@@ -96,13 +96,18 @@
   }
   @keyframes blink { 50% { opacity: 0; } }
   .mobile-input {
-    position: absolute;
-    left: -9999px;
-    top: 0;
+    position: fixed;
+    top: 50%;
+    left: 50%;
     width: 1px;
     height: 1px;
-    opacity: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: transparent;
+    caret-color: transparent;
     font-size: 16px;
+    z-index: -1;
   }
   .tap-hint { display: none; }
   @media (pointer: coarse) {
@@ -720,7 +725,6 @@
     showChallengeBanner();
     loadMiniBoard();
     nextWord();
-    if (isMobile) setTimeout(focusInput, 100);
   }
 
   function showToast(msg) {
@@ -776,8 +780,8 @@
   }
 
   /* ---------- wire up ---------- */
-  el.again.addEventListener("click", function () { reset(); focusInput(); });
-  el.logo.addEventListener("click", function () { reset(); focusInput(); });
+  el.again.addEventListener("click", reset);
+  el.logo.addEventListener("click", reset);
   el.challengeBtn.addEventListener("click", copyChallenge);
   el.share.addEventListener("click", nativeShare);
   el.shareImg.addEventListener("click", downloadCard);
@@ -793,8 +797,16 @@
     if (e.key === "Backspace") { e.preventDefault(); handleBackspace(); }
   });
 
-  el.game.addEventListener("click", function () {
-    if (!finished) focusInput();
+  document.querySelector("main").addEventListener("touchend", function (e) {
+    if (!finished && e.target.tagName !== "INPUT" && e.target.tagName !== "BUTTON" && e.target.tagName !== "A") {
+      e.preventDefault();
+      focusInput();
+    }
+  });
+  document.querySelector("main").addEventListener("click", function (e) {
+    if (!finished && e.target.tagName !== "INPUT" && e.target.tagName !== "BUTTON" && e.target.tagName !== "A") {
+      focusInput();
+    }
   });
 
   parseChallenge();
