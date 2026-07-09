@@ -827,7 +827,7 @@
     el.lbView.classList.add("show");
     el.lbBoardRows.innerHTML = '<div class="board-note">loading…</div>';
     try {
-      var rows = await fetchScores(20);
+      var rows = await fetchScores(50);
       if (!rows.length) {
         el.lbBoardRows.innerHTML = '<div class="board-note">no scores yet — be the first!</div>';
         return;
